@@ -166,8 +166,12 @@ fn handle_normal(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
             }
         }
         // Open URL
-        KeyCode::Char('o') => {
+        KeyCode::Char('o') | KeyCode::Enter => {
             app.open_url();
+        }
+        // Yank URL to clipboard
+        KeyCode::Char('y') => {
+            app.yank_url();
         }
         // Create
         KeyCode::Char('n') => {

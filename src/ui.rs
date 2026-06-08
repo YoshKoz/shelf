@@ -52,7 +52,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 
     // Combine: " Search: <query>█          [N]ew  [/]Find  [Q]uit"
     let left_len = title.len() + search_text.len() + cursor.len();
-    let hints = "  [N]ew  [/]Find  [O]pen  [E]dit  [D]el  [Q]uit";
+    let hints = "  [N]ew  [/]Find  [↵/O]pen  [Y]ank  [E]dit  [D]el  [Q]uit";
     // Pad so hints are right-aligned
     let pad = if left_len + hints.len() + 2 < area.width as usize {
         area.width as usize - left_len - hints.len()

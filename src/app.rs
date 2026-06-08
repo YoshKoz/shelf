@@ -388,6 +388,40 @@ impl App {
         }
     }
 
+    pub fn yank_url(&mut self) {
+        if self.items.is_empty() {
+            return;
+        }
+        let item = &self.items[self.selected];
+        if let Some(url) = &item.url {
+            let url = url.clone();
+            // Try wl-copy (Wayland) then xclip then xsel
+            let copied = std::process::Command::new("wl-copy")
+                .arg(&url)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+                || std::process::Command::new("xclip")
+                    .args(["-selection", "clipboard"])
+                    .stdin(std::process::Stdio::piped())
+                    .spawn()
+                    .ok()
+                    .and_then(|mut c| {
+                        use std::io::Write;
+                        c.stdin.as_mut()?.write_all(url.as_bytes()).ok()?;
+                        c.wait().ok()?.success().then_some(true)
+                    })
+                    .unwrap_or(false);
+            if copied {
+                self.status = format!("Yanked: {url}");
+            } else {
+                self.status = "Clipboard tool not found (wl-copy/xclip)".into();
+            }
+        } else {
+            self.status = "No URL to yank".into();
+        }
+    }
+
     pub fn next_item(&mut self) {
         if !self.items.is_empty() {
             let len = self.items.len();
