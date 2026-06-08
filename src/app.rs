@@ -201,6 +201,13 @@ impl App {
         let query = self.search_query.trim();
         self.items = if query.is_empty() {
             db::list_all(&self.conn)?
+        } else if let Some(tag) = query.strip_prefix("t:") {
+            // Exact tag filter: t:tagname
+            let tag = tag.trim().to_lowercase();
+            let all = db::list_all(&self.conn)?;
+            all.into_iter()
+                .filter(|item| item.tags.iter().any(|t| t.to_lowercase() == tag))
+                .collect()
         } else {
             // Try FTS first
             let results = db::search_fts(&self.conn, query)?;
