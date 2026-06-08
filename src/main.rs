@@ -36,9 +36,90 @@ fn xdg_config_dir() -> PathBuf {
         })
 }
 
+// ── Export ──────────────────────────────────────────────────────────────────
+
+fn cmd_export(format: &str) -> anyhow::Result<()> {
+    let data_dir = xdg_data_dir();
+    let db_path  = data_dir.join("shelf.db");
+    let conn = db::open_or_create(&db_path)?;
+    let items = db::list_all(&conn)?;
+
+    match format {
+        "json" => {
+            let v: Vec<serde_json::Value> = items.iter().map(|it| {
+                serde_json::json!({
+                    "title": it.title,
+                    "url": it.url,
+                    "tags": it.tags,
+                    "type": it.item_type.to_string(),
+                    "created": it.created.to_string(),
+                    "content": it.content,
+                })
+            }).collect();
+            println!("{}", serde_json::to_string_pretty(&v)?);
+        }
+        "html" => {
+            println!("<!DOCTYPE html><html><head><meta charset='utf-8'>");
+            println!("<title>Shelf export</title><style>");
+            println!("body{{font:14px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem}}");
+            println!("h1{{color:#2563eb}}a{{color:#2563eb}}.tag{{background:#e5e7eb;");
+            println!("border-radius:4px;padding:2px 6px;font-size:12px;margin-right:4px}}");
+            println!(".note{{border-left:3px solid #d1d5db;padding:.5rem 1rem;margin:.5rem 0}}");
+            println!("</style></head><body><h1>Shelf export ({} items)</h1><ul>", items.len());
+            for it in &items {
+                let tags_html: String = it.tags.iter()
+                    .map(|t| format!("<span class='tag'>{t}</span>"))
+                    .collect();
+                let url_html = it.url.as_deref()
+                    .map(|u| format!("<a href='{u}'>{u}</a>"))
+                    .unwrap_or_default();
+                let content_html = if it.content.is_empty() { String::new() }
+                    else { format!("<div class='note'>{}</div>", it.content) };
+                println!("<li><strong>{}</strong> {url_html} {tags_html}{content_html}</li>",
+                    it.title);
+            }
+            println!("</ul></body></html>");
+        }
+        _ => {
+            // Markdown (default)
+            for it in &items {
+                let tags = if it.tags.is_empty() { String::new() }
+                    else { format!(" [{}]", it.tags.join(", ")) };
+                if let Some(url) = &it.url {
+                    println!("- [{}]({}){}", it.title, url, tags);
+                } else {
+                    println!("- **{}**{}", it.title, tags);
+                }
+                if !it.content.is_empty() {
+                    for line in it.content.lines().take(3) {
+                        println!("  > {line}");
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(|s| s.as_str()) == Some("export") {
+        let fmt = args.iter().find(|a| a.starts_with("--format="))
+            .and_then(|a| a.split('=').nth(1))
+            .or_else(|| args.iter().position(|a| a == "--format")
+                .and_then(|i| args.get(i + 1).map(|s| s.as_str())))
+            .unwrap_or("markdown");
+        return cmd_export(fmt);
+    }
+    if args.get(1).map(|s| s.as_str()) == Some("--help") || args.get(1).map(|s| s.as_str()) == Some("-h") {
+        println!("shelf — local bookmark/note manager");
+        println!("Usage: shelf [export [--format markdown|html|json]]");
+        println!("       shelf (no args) launches TUI");
+        return Ok(());
+    }
+
     let data_dir = xdg_data_dir();
     let config_dir = xdg_config_dir();
     std::fs::create_dir_all(&data_dir).context("creating data directory")?;
